@@ -140,7 +140,7 @@ if wallets and (check_trigger or send_trigger):
                         'gasPrice': int(gas_price),
                     }
                     signed_tx = Account.sign_transaction(tx, priv_key)
-                    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction if hasattr(signed_tx, 'rawTransaction') else signed_tx.raw_transaction)
                     eth_tx_link = f"https://etherscan.io/tx/{tx_hash.hex()}"
                     tx_results.append({"Từ ví": sender_address, "Trạng thái": f"✅ [Link]({eth_tx_link})"})
                 else:
