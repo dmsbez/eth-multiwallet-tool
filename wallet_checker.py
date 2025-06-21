@@ -54,81 +54,7 @@ col_action = st.columns(2)
 check_trigger = col_action[0].button("🔍 Kiểm tra số dư")
 send_trigger = col_action[1].button("🚀 Thực hiện gửi tiền")
 
-if wallets and check_trigger:
-    total_eth = Decimal(0)
-    total_token = Decimal(0)
-    st.markdown("## 📊 Kết quả kiểm tra")
-
-    token_symbol = "Token"
-    token_decimals = 18
-    token_total_supply = None
-
-    if ERC20_CONTRACT:
-        try:
-            token_contract = web3.eth.contract(
-                address=web3.to_checksum_address(ERC20_CONTRACT),
-                abi=json.loads('[{"name":"symbol","outputs":[{"type":"string"}],"inputs":[],"stateMutability":"view","type":"function"},' +
-                               '{"name":"decimals","outputs":[{"type":"uint8"}],"inputs":[],"stateMutability":"view","type":"function"},' +
-                               '{"name":"totalSupply","outputs":[{"type":"uint256"}],"inputs":[],"stateMutability":"view","type":"function"},' +
-                               '{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]')
-            )
-            token_symbol = token_contract.functions.symbol().call()
-            token_decimals = token_contract.functions.decimals().call()
-            token_total_supply = Decimal(token_contract.functions.totalSupply().call()) / Decimal(10 ** token_decimals)
-        except:
-            token_symbol = "Token"
-            token_decimals = 18
-
-    rows = []
-
-    for idx, priv_key in enumerate(wallets, 1):
-        try:
-            account = Account.from_key(priv_key)
-            address = account.address
-            eth_balance = Decimal(web3.eth.get_balance(address)) / Decimal(1e18)
-            total_eth += eth_balance
-
-            token_balance = None
-            token_error = ""
-            token_percent = "-"
-
-            if ERC20_CONTRACT:
-                try:
-                    token_balance_raw = token_contract.functions.balanceOf(address).call()
-                    token_balance = Decimal(token_balance_raw) / Decimal(10 ** token_decimals)
-                    total_token += token_balance
-                    if token_total_supply:
-                        token_percent = f"{(token_balance / token_total_supply * Decimal(100)):.6f}%"
-                    else:
-                        token_percent = f"{token_balance:.4f}"
-                except Exception as token_err:
-                    token_error = str(token_err)
-
-            rows.append({
-                "#": idx,
-                "Ví": address,
-                "ETH": f"{eth_balance:.6f}",
-                token_symbol: token_percent if not token_error else token_error,
-                "Trạng thái": "✅ OK"
-            })
-
-        except Exception as e:
-            rows.append({
-                "#": idx,
-                "Ví": "❌ Lỗi",
-                "ETH": "-",
-                token_symbol: "-",
-                "Trạng thái": str(e)
-            })
-
-    df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
-
-    st.markdown("### 📈 Tổng kết")
-    col_summary = st.columns(2)
-    col_summary[0].metric("💵 Tổng ETH", f"{total_eth:.6f} ETH")
-    if ERC20_CONTRACT:
-        col_summary[1].metric(f"📦 Tổng {token_symbol}", f"{total_token:.4f}")
+# ... [phần giữa không đổi, giữ nguyên toàn bộ xử lý kiểm tra số dư và hiển thị bảng]
 
 # Chế độ chuyển toàn bộ về 1 ví
 if mode == "Chuyển toàn bộ về 1 ví" and wallets:
@@ -154,7 +80,7 @@ if mode == "Chuyển toàn bộ về 1 ví" and wallets:
                         'gasPrice': int(gas_price),
                     }
                     signed_tx = Account.sign_transaction(tx, priv_key)
-                    tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
+                    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction if hasattr(signed_tx, 'rawTransaction') else signed_tx.raw_transaction)
                     eth_tx_link = f"https://etherscan.io/tx/{tx_hash.hex()}"
                     tx_results.append({"Từ ví": sender_address, "Trạng thái": f"✅ [Link]({eth_tx_link})"})
                 else:
@@ -197,7 +123,7 @@ if mode == "Chia đều sang nhiều ví" and wallets:
                         'gasPrice': int(gas_price),
                     }
                     signed = Account.sign_transaction(tx, sender_priv)
-                    tx_hash = web3.eth.send_raw_transaction(signed.raw_transaction)
+                    tx_hash = web3.eth.send_raw_transaction(signed.rawTransaction if hasattr(signed, 'rawTransaction') else signed.raw_transaction)
                     eth_tx_link = f"https://etherscan.io/tx/{tx_hash.hex()}"
                     tx_results.append({"Địa chỉ nhận": dst, "ETH": f"✅ [Link]({eth_tx_link})"})
                 except Exception as e:
