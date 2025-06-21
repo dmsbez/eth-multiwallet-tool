@@ -121,3 +121,37 @@ if mode == "Chia đều sang nhiều ví" and wallets:
                     tx_results.append({"Địa chỉ nhận": dst, "ETH": f"❌ {str(e)}"})
             st.markdown("### ✅ Kết quả gửi tiền")
             st.dataframe(pd.DataFrame(tx_results), use_container_width=True, hide_index=True)
+
+# Giao diện chuyển toàn bộ về 1 ví
+if mode == "Chuyển toàn bộ về 1 ví" and wallets:
+    st.markdown("## 📤 Gửi toàn bộ ETH về 1 ví")
+    if send_trigger:
+        st.markdown("### 🔄 Đang gửi tiền...")
+        tx_results = []
+        for priv_key in wallets:
+            try:
+                account = Account.from_key(priv_key)
+                sender_address = account.address
+                gas_price = Decimal(web3.to_wei(GAS_CUSTOM, 'gwei')) if GAS_CUSTOM > 0 else Decimal(web3.eth.gas_price)
+                gas_fee = gas_price * Decimal(21000) / Decimal(1e18)
+                balance = Decimal(web3.eth.get_balance(sender_address)) / Decimal(1e18)
+                amount_to_send = balance - gas_fee
+                if amount_to_send > 0:
+                    tx = {
+                        'nonce': web3.eth.get_transaction_count(sender_address),
+                        'to': DEST_WALLET,
+                        'value': int(amount_to_send * Decimal(1e18)),
+                        'gas': 21000,
+                        'gasPrice': int(gas_price),
+                        'chainId': 1
+                    }
+                    signed_tx = Account.sign_transaction(tx, priv_key)
+                    raw_tx = getattr(signed_tx, 'rawTransaction', getattr(signed_tx, 'raw_transaction'))
+                    tx_hash = web3.eth.send_raw_transaction(raw_tx)
+                    eth_tx_link = f"https://etherscan.io/tx/{tx_hash.hex()}"
+                    tx_results.append({"Từ ví": sender_address, "Trạng thái": f"✅ [Link]({eth_tx_link})"})
+                else:
+                    tx_results.append({"Từ ví": sender_address, "Trạng thái": "⚠️ Không đủ ETH để gửi"})
+            except Exception as e:
+                tx_results.append({"Từ ví": "❌ Lỗi", "Trạng thái": str(e)})
+        st.dataframe(pd.DataFrame(tx_results), use_container_width=True, hide_index=True)
