@@ -54,33 +54,31 @@ col_action = st.columns(2)
 check_trigger = col_action[0].button("🔍 Kiểm tra số dư")
 send_trigger = col_action[1].button("🚀 Thực hiện gửi tiền")
 
-if wallets and check_trigger:
-    total_eth = Decimal(0)
-    total_token = Decimal(0)
-    st.markdown("## 📊 Kết quả kiểm tra")
+show_balance_table = False
+rows = []
+total_eth = Decimal(0)
+total_token = Decimal(0)
+token_symbol = "Token"
+token_decimals = 18
+token_total_supply = None
 
-    token_symbol = "Token"
-    token_decimals = 18
-    token_total_supply = None
+if ERC20_CONTRACT:
+    try:
+        token_contract = web3.eth.contract(
+            address=web3.to_checksum_address(ERC20_CONTRACT),
+            abi=json.loads('[{"name":"symbol","outputs":[{"type":"string"}],"inputs":[],"stateMutability":"view","type":"function"},' +
+                           '{"name":"decimals","outputs":[{"type":"uint8"}],"inputs":[],"stateMutability":"view","type":"function"},' +
+                           '{"name":"totalSupply","outputs":[{"type":"uint256"}],"inputs":[],"stateMutability":"view","type":"function"},' +
+                           '{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]')
+        )
+        token_symbol = token_contract.functions.symbol().call()
+        token_decimals = token_contract.functions.decimals().call()
+        token_total_supply = Decimal(token_contract.functions.totalSupply().call()) / Decimal(10 ** token_decimals)
+    except:
+        token_symbol = "Token"
+        token_decimals = 18
 
-    if ERC20_CONTRACT:
-        try:
-            token_contract = web3.eth.contract(
-                address=web3.to_checksum_address(ERC20_CONTRACT),
-                abi=json.loads('[{"name":"symbol","outputs":[{"type":"string"}],"inputs":[],"stateMutability":"view","type":"function"},' +
-                               '{"name":"decimals","outputs":[{"type":"uint8"}],"inputs":[],"stateMutability":"view","type":"function"},' +
-                               '{"name":"totalSupply","outputs":[{"type":"uint256"}],"inputs":[],"stateMutability":"view","type":"function"},' +
-                               '{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]')
-            )
-            token_symbol = token_contract.functions.symbol().call()
-            token_decimals = token_contract.functions.decimals().call()
-            token_total_supply = Decimal(token_contract.functions.totalSupply().call()) / Decimal(10 ** token_decimals)
-        except:
-            token_symbol = "Token"
-            token_decimals = 18
-
-    rows = []
-
+if wallets and (check_trigger or send_trigger):
     for idx, priv_key in enumerate(wallets, 1):
         try:
             account = Account.from_key(priv_key)
@@ -120,8 +118,11 @@ if wallets and check_trigger:
                 token_symbol: "-",
                 "Trạng thái": str(e)
             })
+    show_balance_table = True
 
+if show_balance_table:
     df = pd.DataFrame(rows)
+    st.markdown("## 📊 Kết quả kiểm tra")
     st.dataframe(df, use_container_width=True, hide_index=True)
 
     st.markdown("### 📈 Tổng kết")
