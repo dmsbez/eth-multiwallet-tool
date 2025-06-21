@@ -162,10 +162,10 @@ if wallets and (check_trigger or send_trigger):
                         'value': int(amount_to_send * Decimal(1e18)),
                         'gas': 21000,
                         'gasPrice': int(gas_price),
-                        'chainId': 1  # Fix lỗi thiếu chainId
+                        'chainId': 1
                     }
                     signed_tx = Account.sign_transaction(tx, priv_key)
-                    raw_tx = getattr(signed_tx, 'rawTransaction', getattr(signed_tx, 'raw_transaction'))
+                    raw_tx = getattr(signed_tx, 'rawTransaction', getattr(signed_tx, 'raw_transaction', None))
                     tx_hash = web3.eth.send_raw_transaction(raw_tx)
                     eth_tx_link = f"https://etherscan.io/tx/{tx_hash.hex()}"
                     tx_results.append({"Từ ví": sender_address, "Trạng thái": f"✅ [Link]({eth_tx_link})"})
@@ -174,6 +174,49 @@ if wallets and (check_trigger or send_trigger):
             except Exception as e:
                 tx_results.append({"Từ ví": "❌ Lỗi", "Trạng thái": str(e)})
         st.dataframe(pd.DataFrame(tx_results), use_container_width=True, hide_index=True)
+
+    elif mode == "Chia đều sang nhiều ví" and send_trigger:
+        st.markdown("## 🎯 Gửi tiền đến nhiều ví")
+        src_wallet_idx = st.selectbox("Chọn ví nguồn (số thứ tự)", range(1, len(wallets)+1))
+        dst_input = st.text_area("📨 Danh sách địa chỉ nhận (1 dòng 1 ví)", height=150)
+        dst_list = [line.strip() for line in dst_input.splitlines() if web3.is_address(line.strip())]
+        amount_per_wallet = st.number_input("💰 Số ETH mỗi ví nhận", min_value=0.000001, value=0.02, step=0.001, format="%.6f")
+
+        if dst_list:
+            st.markdown("### 🔄 Đang gửi tiền...")
+            sender_priv = wallets[src_wallet_idx-1]
+            sender = Account.from_key(sender_priv)
+            sender_address = sender.address
+            gas_price = Decimal(web3.to_wei(GAS_CUSTOM, 'gwei')) if GAS_CUSTOM > 0 else Decimal(web3.eth.gas_price)
+            gas_fee = gas_price * Decimal(21000) / Decimal(1e18)
+            total_required = (Decimal(amount_per_wallet) + gas_fee) * Decimal(len(dst_list))
+
+            balance_eth = Decimal(web3.eth.get_balance(sender_address)) / Decimal(1e18)
+
+            if balance_eth < total_required:
+                st.error(f"❌ Không đủ ETH. Cần {total_required:.6f} ETH, đang có {balance_eth:.6f} ETH")
+            else:
+                tx_results = []
+                for idx, dst in enumerate(dst_list):
+                    try:
+                        nonce = web3.eth.get_transaction_count(sender_address) + idx
+                        tx = {
+                            'nonce': nonce,
+                            'to': dst,
+                            'value': int(Decimal(amount_per_wallet) * Decimal(1e18)),
+                            'gas': 21000,
+                            'gasPrice': int(gas_price),
+                            'chainId': 1
+                        }
+                        signed = Account.sign_transaction(tx, sender_priv)
+                        raw_tx = getattr(signed, 'rawTransaction', getattr(signed, 'raw_transaction', None))
+                        tx_hash = web3.eth.send_raw_transaction(raw_tx)
+                        eth_tx_link = f"https://etherscan.io/tx/{tx_hash.hex()}"
+                        tx_results.append({"Địa chỉ nhận": dst, "ETH": f"✅ [Link]({eth_tx_link})"})
+                    except Exception as e:
+                        tx_results.append({"Địa chỉ nhận": dst, "ETH": f"❌ {str(e)}"})
+                st.markdown("### ✅ Kết quả gửi tiền")
+                st.dataframe(pd.DataFrame(tx_results), use_container_width=True, hide_index=True)
 
 if show_balance_table:
     df = pd.DataFrame(rows)
