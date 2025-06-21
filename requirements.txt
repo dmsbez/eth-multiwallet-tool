@@ -1,0 +1,5 @@
+streamlit
+web3
+eth_account
+requests
+pandas
