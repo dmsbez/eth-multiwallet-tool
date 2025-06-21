@@ -120,6 +120,35 @@ if wallets and (check_trigger or send_trigger):
             })
     show_balance_table = True
 
+    if mode == "Chuyển toàn bộ về 1 ví" and send_trigger:
+        st.markdown("### 🔄 Đang gửi tiền...")
+        tx_results = []
+        for priv_key in wallets:
+            try:
+                account = Account.from_key(priv_key)
+                sender_address = account.address
+                gas_price = Decimal(web3.to_wei(GAS_CUSTOM, 'gwei')) if GAS_CUSTOM > 0 else Decimal(web3.eth.gas_price)
+                gas_fee = gas_price * Decimal(21000) / Decimal(1e18)
+                balance = Decimal(web3.eth.get_balance(sender_address)) / Decimal(1e18)
+                amount_to_send = balance - gas_fee
+                if amount_to_send > 0:
+                    tx = {
+                        'nonce': web3.eth.get_transaction_count(sender_address),
+                        'to': DEST_WALLET,
+                        'value': int(amount_to_send * Decimal(1e18)),
+                        'gas': 21000,
+                        'gasPrice': int(gas_price),
+                    }
+                    signed_tx = Account.sign_transaction(tx, priv_key)
+                    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                    eth_tx_link = f"https://etherscan.io/tx/{tx_hash.hex()}"
+                    tx_results.append({"Từ ví": sender_address, "Trạng thái": f"✅ [Link]({eth_tx_link})"})
+                else:
+                    tx_results.append({"Từ ví": sender_address, "Trạng thái": "⚠️ Không đủ ETH để gửi"})
+            except Exception as e:
+                tx_results.append({"Từ ví": "❌ Lỗi", "Trạng thái": str(e)})
+        st.dataframe(pd.DataFrame(tx_results), use_container_width=True, hide_index=True)
+
 if show_balance_table:
     df = pd.DataFrame(rows)
     st.markdown("## 📊 Kết quả kiểm tra")
