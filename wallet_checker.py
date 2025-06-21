@@ -11,8 +11,32 @@ getcontext().prec = 28
 st.set_page_config(page_title="🔍 ETH & Token Tracker", layout="wide")
 st.title("🧠 ETH & ERC20 Multi-Wallet Tool")
 
+# List RPC fallback
+POSSIBLE_RPCS = [
+    "https://eth.llamarpc.com",
+    "https://rpc.ankr.com/eth",
+    "https://ethereum.publicnode.com",
+    "https://mainnet.infura.io/v3/YOUR_INFURA_KEY",
+    "https://cloudflare-eth.com"
+]
+
+def get_working_rpc():
+    for rpc in POSSIBLE_RPCS:
+        w3 = Web3(Web3.HTTPProvider(rpc))
+        try:
+            if w3.is_connected():
+                return rpc
+        except:
+            continue
+    return None
+
+DEFAULT_RPC = get_working_rpc()
+if not DEFAULT_RPC:
+    st.error("❌ Không tìm được RPC khả dụng.")
+    st.stop()
+
 st.sidebar.header("⚙️ Cấu hình RPC & Ví Nhận")
-RPC_URL = st.sidebar.text_input("🌐 RPC URL", value="https://eth.llamarpc.com")
+RPC_URL = st.sidebar.text_input("🌐 RPC URL", value=DEFAULT_RPC)
 DEST_WALLET = st.sidebar.text_input("📥 Ví nhận ETH", value="0x...", max_chars=42)
 ERC20_CONTRACT = st.sidebar.text_input("📦 Contract Token (nếu có)", value="")
 GAS_CUSTOM = st.sidebar.number_input("⚡ Gas Price (Gwei, 0 = auto)", min_value=0, value=0)
@@ -138,9 +162,11 @@ if wallets and (check_trigger or send_trigger):
                         'value': int(amount_to_send * Decimal(1e18)),
                         'gas': 21000,
                         'gasPrice': int(gas_price),
+                        'chainId': 1  # Fix lỗi thiếu chainId
                     }
                     signed_tx = Account.sign_transaction(tx, priv_key)
-                    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction if hasattr(signed_tx, 'rawTransaction') else signed_tx.raw_transaction)
+                    raw_tx = getattr(signed_tx, 'rawTransaction', getattr(signed_tx, 'raw_transaction'))
+                    tx_hash = web3.eth.send_raw_transaction(raw_tx)
                     eth_tx_link = f"https://etherscan.io/tx/{tx_hash.hex()}"
                     tx_results.append({"Từ ví": sender_address, "Trạng thái": f"✅ [Link]({eth_tx_link})"})
                 else:
