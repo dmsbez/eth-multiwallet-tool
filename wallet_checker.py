@@ -161,8 +161,7 @@ if wallets:
     # ======== XỬ LÝ CHIA ĐỀU ============
     if st.button("🚀 Thực hiện chuyển"):
         if mode == "Chia đều sang nhiều ví" and total_eth > 0:
-            target_count = len(wallets)
-            eth_per_wallet = (total_eth / target_count).quantize(Decimal("0.000001"))
+            eth_per_wallet = (total_eth / len(wallets)).quantize(Decimal("0.000001"))
             st.info(f"Mỗi ví sẽ nhận khoảng {eth_per_wallet} ETH")
             for priv in wallets:
                 try:
@@ -170,7 +169,7 @@ if wallets:
                     sender_address = acct.address
                     nonce = web3.eth.get_transaction_count(sender_address)
                     tx = {
-                        'to': DEST_WALLET,
+                        'to': sender_address,
                         'value': int(eth_per_wallet * Decimal(1e18)),
                         'gas': 21000,
                         'nonce': nonce,
@@ -178,6 +177,6 @@ if wallets:
                     }
                     signed_tx = acct.sign_transaction(tx)
                     tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-                    st.success(f"✅ Gửi từ {sender_address} → {DEST_WALLET}: {tx_hash.hex()}")
+                    st.success(f"✅ Chuyển về {sender_address}: {tx_hash.hex()}")
                 except Exception as e:
-                    st.error(f"❌ Gửi từ {sender_address} thất bại: {str(e)}")
+                    st.error(f"❌ Gửi về {sender_address} thất bại: {str(e)}")
