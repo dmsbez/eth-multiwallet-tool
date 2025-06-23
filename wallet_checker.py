@@ -60,14 +60,6 @@ elif uploaded:
     content = uploaded.read().decode("utf-8").splitlines()
     wallets = [line.strip() for line in content if line.strip()]
 
-if mode == "Chia đều sang nhiều ví":
-    with st.sidebar.expander("📤 Tùy chọn chia đều"):
-        wallet_selection_input = st.text_area("📥 Dán danh sách ví nhận (1 ví mỗi dòng)")
-        if wallet_selection_input.strip():
-            selected_wallets_to_receive = [line.strip() for line in wallet_selection_input.splitlines() if line.strip()]
-        send_amount = st.number_input("💰 Tổng số ETH cần chia", min_value=0.0, format="%.6f")
-        source_wallet = st.selectbox("📤 Chọn ví nguồn", options=["Chọn"] + [f"{i+1}: {Account.from_key(pk).address}" for i, pk in enumerate(wallets)])
-
 web3 = Web3(Web3.HTTPProvider(RPC_URL))
 if not web3.is_connected():
     st.error("❌ Không kết nối được RPC.")
@@ -86,6 +78,14 @@ try:
     col_price[1].metric("⚡ Gas (Gwei)", f"{gas_now:.3f}")
 except:
     col_price[1].warning("Không lấy được gas")
+
+if mode == "Chia đều sang nhiều ví":
+    with st.sidebar.expander("📤 Tùy chọn chia đều"):
+        wallet_selection_input = st.text_area("📥 Dán danh sách ví nhận (1 ví mỗi dòng)")
+        if wallet_selection_input.strip():
+            selected_wallets_to_receive = [line.strip() for line in wallet_selection_input.splitlines() if line.strip()]
+        send_amount = st.number_input("💰 Tổng số ETH cần chia", min_value=0.0, format="%.6f")
+        source_wallet = st.selectbox("📤 Chọn ví nguồn", options=[f"{i+1}: {Account.from_key(pk).address}" for i, pk in enumerate(wallets)])
 
 @st.cache_data(ttl=60)
 def fetch_token_info(contract_addr):
@@ -172,7 +172,7 @@ if wallets:
     # ======== XỬ LÝ CHIA ĐỀU ============
     if st.button("🚀 Thực hiện chuyển"):
         if mode == "Chia đều sang nhiều ví" and total_eth > 0:
-            if selected_wallets_to_receive and source_wallet != "Chọn":
+            if selected_wallets_to_receive and source_wallet:
                 selected_index = int(source_wallet.split(":")[0]) - 1
                 source_priv = wallets[selected_index]
                 try:
@@ -191,7 +191,7 @@ if wallets:
                             'gasPrice': web3.to_wei(GAS_CUSTOM if GAS_CUSTOM > 0 else gas_now, 'gwei')
                         }
                         signed_tx = web3.eth.account.sign_transaction(tx, private_key=source_priv)
-                        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                        tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
                         st.success(f"✅ Gửi {eth_per_wallet} ETH từ {sender_address[:6]}... → {recipient[:6]}...: [{tx_hash.hex()}](https://etherscan.io/tx/{tx_hash.hex()})")
                         nonce += 1
                 except Exception as e:
