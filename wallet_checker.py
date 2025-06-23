@@ -6,6 +6,7 @@ import json
 import requests
 import pandas as pd
 import time
+import threading
 
 getcontext().prec = 28
 
@@ -83,6 +84,8 @@ if wallets:
     rows = []
     token_symbol = "Token"
     token_decimals = 18
+    market_info = ""
+    realtime_price = st.empty()
 
     if ERC20_CONTRACT:
         try:
@@ -95,7 +98,24 @@ if wallets:
             )
             token_symbol = token_contract.functions.symbol().call()
             token_decimals = token_contract.functions.decimals().call()
-            total_supply = token_contract.functions.totalSupply().call()
+            total_supply = Decimal(token_contract.functions.totalSupply().call()) / Decimal(10 ** token_decimals)
+
+            def update_realtime():
+                while True:
+                    try:
+                        dex_url = f"https://api.dexscreener.com/latest/dex/tokens/{ERC20_CONTRACT}"
+                        dex_data = requests.get(dex_url).json()
+                        if 'pairs' in dex_data and len(dex_data['pairs']) > 0:
+                            pair_info = dex_data['pairs'][0]
+                            price_usd = pair_info.get('priceUsd', 'N/A')
+                            marketcap = pair_info.get('fdv', 'N/A')
+                            realtime_price.success(f"💲Giá: ${price_usd}, 🧢 FDV: {marketcap}")
+                    except:
+                        realtime_price.warning("Không lấy được giá token.")
+                    time.sleep(10)
+
+            threading.Thread(target=update_realtime, daemon=True).start()
+
         except:
             st.warning("❌ Không thể load thông tin token.")
 
@@ -128,6 +148,3 @@ if wallets:
         cols[1].metric(f"📦 Tổng {token_symbol}", f"{total_token:.4f}")
 
     st.button("🔄 Làm mới")
-
-# ========== GIAO DIỆN SWAP TOKEN (GIỮ NGUYÊN KHÔNG ĐỤNG) ===========
-# (Code swap đã có sẵn phía dưới vẫn giữ nguyên như yêu cầu)
