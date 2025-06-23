@@ -6,7 +6,6 @@ import json
 import requests
 import pandas as pd
 import time
-import threading
 
 getcontext().prec = 28
 
@@ -77,6 +76,29 @@ elif uploaded:
     content = uploaded.read().decode("utf-8").splitlines()
     wallets = [line.strip() for line in content if line.strip()]
 
+@st.cache_data(ttl=60)
+def fetch_token_info(contract_addr):
+    token_contract = web3.eth.contract(
+        address=web3.to_checksum_address(contract_addr),
+        abi=json.loads('[{"name":"symbol","outputs":[{"type":"string"}],"inputs":[],"stateMutability":"view","type":"function"},' +
+                       '{"name":"decimals","outputs":[{"type":"uint8"}],"inputs":[],"stateMutability":"view","type":"function"},' +
+                       '{"name":"totalSupply","outputs":[{"type":"uint256"}],"inputs":[],"stateMutability":"view","type":"function"},' +
+                       '{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]')
+    )
+    symbol = token_contract.functions.symbol().call()
+    decimals = token_contract.functions.decimals().call()
+    supply = Decimal(token_contract.functions.totalSupply().call()) / Decimal(10 ** decimals)
+    try:
+        dex_data = requests.get(f"https://api.dexscreener.com/latest/dex/tokens/{contract_addr}").json()
+        if 'pairs' in dex_data and len(dex_data['pairs']) > 0:
+            pair = dex_data['pairs'][0]
+            price = pair.get("priceUsd", "N/A")
+            marketcap = pair.get("fdv", "N/A")
+            return symbol, decimals, supply, price, marketcap
+    except:
+        pass
+    return symbol, decimals, supply, "N/A", "N/A"
+
 if wallets:
     st.markdown("### 📊 Kết quả kiểm tra")
     total_eth = Decimal(0)
@@ -84,38 +106,12 @@ if wallets:
     rows = []
     token_symbol = "Token"
     token_decimals = 18
-    market_info = ""
     realtime_price = st.empty()
 
     if ERC20_CONTRACT:
         try:
-            token_contract = web3.eth.contract(
-                address=web3.to_checksum_address(ERC20_CONTRACT),
-                abi=json.loads('[{"name":"symbol","outputs":[{"type":"string"}],"inputs":[],"stateMutability":"view","type":"function"},' +
-                               '{"name":"decimals","outputs":[{"type":"uint8"}],"inputs":[],"stateMutability":"view","type":"function"},' +
-                               '{"name":"totalSupply","outputs":[{"type":"uint256"}],"inputs":[],"stateMutability":"view","type":"function"},' +
-                               '{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]')
-            )
-            token_symbol = token_contract.functions.symbol().call()
-            token_decimals = token_contract.functions.decimals().call()
-            total_supply = Decimal(token_contract.functions.totalSupply().call()) / Decimal(10 ** token_decimals)
-
-            def update_realtime():
-                while True:
-                    try:
-                        dex_url = f"https://api.dexscreener.com/latest/dex/tokens/{ERC20_CONTRACT}"
-                        dex_data = requests.get(dex_url).json()
-                        if 'pairs' in dex_data and len(dex_data['pairs']) > 0:
-                            pair_info = dex_data['pairs'][0]
-                            price_usd = pair_info.get('priceUsd', 'N/A')
-                            marketcap = pair_info.get('fdv', 'N/A')
-                            realtime_price.success(f"💲Giá: ${price_usd}, 🧢 FDV: {marketcap}")
-                    except:
-                        realtime_price.warning("Không lấy được giá token.")
-                    time.sleep(10)
-
-            threading.Thread(target=update_realtime, daemon=True).start()
-
+            token_symbol, token_decimals, total_supply, token_price, marketcap = fetch_token_info(ERC20_CONTRACT)
+            realtime_price.success(f"💲Giá: ${token_price}, 🧢 FDV: {marketcap}")
         except:
             st.warning("❌ Không thể load thông tin token.")
 
@@ -129,6 +125,10 @@ if wallets:
 
             if ERC20_CONTRACT:
                 try:
+                    token_contract = web3.eth.contract(
+                        address=web3.to_checksum_address(ERC20_CONTRACT),
+                        abi=json.loads('[{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]')
+                    )
                     token_balance_raw = token_contract.functions.balanceOf(address).call()
                     token_bal = Decimal(token_balance_raw) / Decimal(10 ** token_decimals)
                     total_token += token_bal
@@ -136,7 +136,7 @@ if wallets:
                     token_bal = "Lỗi"
 
             rows.append({"#": idx, "Ví": address, "ETH": f"{eth_bal:.6f}", token_symbol: token_bal})
-        except Exception as e:
+        except:
             rows.append({"#": idx, "Ví": "Lỗi", "ETH": "-", token_symbol: "-"})
 
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
@@ -148,4 +148,19 @@ if wallets:
         cols[1].metric(f"📦 Tổng {token_symbol}", f"{total_token:.4f}")
 
     if st.button("🔄 Làm mới"):
-        st.experimental_rerun()
+        st.rerun()
+
+# ========== SWAP UI ==============
+st.markdown("## 🔄 Giao dịch Token ERC20")
+with st.form("swap_form"):
+    st.write("### Chuyển đổi token trực tiếp")
+    swap_from = st.text_input("Contract Token Gốc")
+    swap_to = st.text_input("Contract Token Đích")
+    amount_in = st.number_input("Số lượng Token Gốc", min_value=0.0, format="%.6f")
+    your_wallet = st.text_input("Ví của bạn (phải có private key trong danh sách)")
+    router = st.selectbox("Router DEX", ["Uniswap", "Sushiswap", "0x Aggregator (auto)"])
+    submitted = st.form_submit_button("🌀 Swap ngay")
+
+    if submitted:
+        st.warning("⏳ Đang xử lý giao dịch Swap... (Tính năng đang phát triển)")
+        st.info("✅ Swap thực sẽ được tích hợp sau khi xác minh pool & định tuyến an toàn nhất từ các DEX!")
