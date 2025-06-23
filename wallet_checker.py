@@ -147,4 +147,5 @@ if wallets:
     if ERC20_CONTRACT:
         cols[1].metric(f"📦 Tổng {token_symbol}", f"{total_token:.4f}")
 
-    st.button("🔄 Làm mới")
+    if st.button("🔄 Làm mới"):
+        st.experimental_rerun()
