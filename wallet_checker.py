@@ -47,13 +47,26 @@ mode = st.sidebar.radio("🔁 Chế độ gửi tiền", ["Chuyển toàn bộ v
 selected_wallets_to_receive = []
 send_amount = Decimal(0)
 source_wallet = None
+
+st.markdown("## 📂 Nhập danh sách Private Key")
+input_keys = st.text_area("✍️ Dán private key (1 dòng 1 key)", height=150)
+with st.expander("📁 Hoặc tải file .txt"):
+    uploaded = st.file_uploader("Tải file chứa private key", type=["txt"])
+
+wallets = []
+if input_keys.strip():
+    wallets = [line.strip() for line in input_keys.splitlines() if line.strip()]
+elif uploaded:
+    content = uploaded.read().decode("utf-8").splitlines()
+    wallets = [line.strip() for line in content if line.strip()]
+
 if mode == "Chia đều sang nhiều ví":
     with st.sidebar.expander("📤 Tùy chọn chia đều"):
         wallet_selection_input = st.text_area("📥 Dán danh sách ví nhận (1 ví mỗi dòng)")
         if wallet_selection_input.strip():
             selected_wallets_to_receive = [line.strip() for line in wallet_selection_input.splitlines() if line.strip()]
         send_amount = st.number_input("💰 Tổng số ETH cần chia", min_value=0.0, format="%.6f")
-        source_wallet = st.selectbox("📤 Chọn ví nguồn", options=["Chọn"] + [f"{i+1}: {Account.from_key(pk).address}" for i, pk in enumerate(wallets)] if 'wallets' in locals() else ["Chọn"])
+        source_wallet = st.selectbox("📤 Chọn ví nguồn", options=["Chọn"] + [f"{i+1}: {Account.from_key(pk).address}" for i, pk in enumerate(wallets)])
 
 web3 = Web3(Web3.HTTPProvider(RPC_URL))
 if not web3.is_connected():
@@ -73,19 +86,6 @@ try:
     col_price[1].metric("⚡ Gas (Gwei)", f"{gas_now:.3f}")
 except:
     col_price[1].warning("Không lấy được gas")
-
-# ========== CHECK BALANCE GIAO DIỆN CHÍNH ============
-st.markdown("## 📂 Nhập danh sách Private Key")
-input_keys = st.text_area("✍️ Dán private key (1 dòng 1 key)", height=150)
-with st.expander("📁 Hoặc tải file .txt"):
-    uploaded = st.file_uploader("Tải file chứa private key", type=["txt"])
-
-wallets = []
-if input_keys.strip():
-    wallets = [line.strip() for line in input_keys.splitlines() if line.strip()]
-elif uploaded:
-    content = uploaded.read().decode("utf-8").splitlines()
-    wallets = [line.strip() for line in content if line.strip()]
 
 @st.cache_data(ttl=60)
 def fetch_token_info(contract_addr):
@@ -179,18 +179,20 @@ if wallets:
                     acct = Account.from_key(source_priv)
                     sender_address = acct.address
                     eth_per_wallet = Decimal(send_amount) / len(selected_wallets_to_receive)
+                    nonce = web3.eth.get_transaction_count(sender_address)
                     for recipient in selected_wallets_to_receive:
-                        if recipient != sender_address:
-                            nonce = web3.eth.get_transaction_count(sender_address)
-                            tx = {
-                                'to': recipient,
-                                'value': int(eth_per_wallet * Decimal(1e18)),
-                                'gas': 21000,
-                                'nonce': nonce,
-                                'gasPrice': web3.to_wei(gas_now if GAS_CUSTOM == 0 else GAS_CUSTOM, 'gwei')
-                            }
-                            signed_tx = acct.sign_transaction(tx)
-                            tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
-                            st.success(f"✅ Gửi {eth_per_wallet} ETH từ {sender_address[:6]}... → {recipient[:6]}...: {tx_hash.hex()}")
+                        if recipient.lower() == sender_address.lower():
+                            continue
+                        tx = {
+                            'to': recipient,
+                            'value': int(eth_per_wallet * Decimal(1e18)),
+                            'gas': 21000,
+                            'nonce': nonce,
+                            'gasPrice': web3.to_wei(GAS_CUSTOM if GAS_CUSTOM > 0 else gas_now, 'gwei')
+                        }
+                        signed_tx = web3.eth.account.sign_transaction(tx, private_key=source_priv)
+                        tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                        st.success(f"✅ Gửi {eth_per_wallet} ETH từ {sender_address[:6]}... → {recipient[:6]}...: [{tx_hash.hex()}](https://etherscan.io/tx/{tx_hash.hex()})")
+                        nonce += 1
                 except Exception as e:
                     st.error(f"❌ Gửi từ {sender_address} thất bại: {str(e)}")
