@@ -44,6 +44,14 @@ GAS_CUSTOM = st.sidebar.number_input("⚡ Gas Price (Gwei, 0 = auto)", min_value
 
 mode = st.sidebar.radio("🔁 Chế độ gửi tiền", ["Chuyển toàn bộ về 1 ví", "Chia đều sang nhiều ví"])
 
+selected_wallets_to_receive = []
+if mode == "Chia đều sang nhiều ví":
+    with st.sidebar.expander("📤 Tùy chọn chia đều"):
+        wallet_selection_input = st.text_area("📥 Dán danh sách ví nhận (1 ví mỗi dòng)")
+        if wallet_selection_input.strip():
+            selected_wallets_to_receive = [line.strip() for line in wallet_selection_input.splitlines() if line.strip()]
+        send_amount = st.number_input("💰 Tổng số ETH cần chia", min_value=0.0, format="%.6f")
+
 web3 = Web3(Web3.HTTPProvider(RPC_URL))
 if not web3.is_connected():
     st.error("❌ Không kết nối được RPC.")
@@ -161,25 +169,13 @@ if wallets:
     # ======== XỬ LÝ CHIA ĐỀU ============
     if st.button("🚀 Thực hiện chuyển"):
         if mode == "Chia đều sang nhiều ví" and total_eth > 0:
-            active_wallets = []
-            for priv in wallets:
-                try:
-                    acct = Account.from_key(priv)
-                    if web3.eth.get_balance(acct.address) > 0:
-                        active_wallets.append(priv)
-                except:
-                    continue
-            if not active_wallets:
-                st.warning("Không có ví nào khả dụng để chia đều.")
-            else:
-                eth_per_wallet = (total_eth / len(active_wallets)).quantize(Decimal("0.000001"))
-                st.info(f"Mỗi ví sẽ nhận khoảng {eth_per_wallet} ETH")
+            if selected_wallets_to_receive:
+                eth_per_wallet = Decimal(send_amount) / len(selected_wallets_to_receive)
                 for priv in wallets:
                     try:
                         acct = Account.from_key(priv)
                         sender_address = acct.address
-                        for recipient_priv in active_wallets:
-                            recipient = Account.from_key(recipient_priv).address
+                        for recipient in selected_wallets_to_receive:
                             if recipient != sender_address:
                                 nonce = web3.eth.get_transaction_count(sender_address)
                                 tx = {
