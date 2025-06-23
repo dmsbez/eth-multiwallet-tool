@@ -111,7 +111,15 @@ if wallets:
     if ERC20_CONTRACT:
         try:
             token_symbol, token_decimals, total_supply, token_price, marketcap = fetch_token_info(ERC20_CONTRACT)
-            realtime_price.success(f"💲Giá: ${token_price}, 🧢 FDV: {marketcap}")
+            if marketcap != "N/A":
+                try:
+                    marketcap_float = float(marketcap)
+                    marketcap_fmt = f"{marketcap_float:,.0f}" if marketcap_float < 1e6 else f"{marketcap_float / 1e6:.2f}M"
+                except:
+                    marketcap_fmt = marketcap
+            else:
+                marketcap_fmt = marketcap
+            realtime_price.success(f"💲Giá: ${token_price}, 🧢 FDV: {marketcap_fmt}")
         except:
             st.warning("❌ Không thể load thông tin token.")
 
@@ -150,17 +158,26 @@ if wallets:
     if st.button("🔄 Làm mới"):
         st.rerun()
 
-# ========== SWAP UI ==============
-st.markdown("## 🔄 Giao dịch Token ERC20")
-with st.form("swap_form"):
-    st.write("### Chuyển đổi token trực tiếp")
-    swap_from = st.text_input("Contract Token Gốc")
-    swap_to = st.text_input("Contract Token Đích")
-    amount_in = st.number_input("Số lượng Token Gốc", min_value=0.0, format="%.6f")
-    your_wallet = st.text_input("Ví của bạn (phải có private key trong danh sách)")
-    router = st.selectbox("Router DEX", ["Uniswap", "Sushiswap", "0x Aggregator (auto)"])
-    submitted = st.form_submit_button("🌀 Swap ngay")
-
-    if submitted:
-        st.warning("⏳ Đang xử lý giao dịch Swap... (Tính năng đang phát triển)")
-        st.info("✅ Swap thực sẽ được tích hợp sau khi xác minh pool & định tuyến an toàn nhất từ các DEX!")
+    # ======== XỬ LÝ CHIA ĐỀU ============
+    if st.button("🚀 Thực hiện chuyển"):
+        if mode == "Chia đều sang nhiều ví" and total_eth > 0:
+            target_count = len(wallets)
+            eth_per_wallet = (total_eth / target_count).quantize(Decimal("0.000001"))
+            st.info(f"Mỗi ví sẽ nhận khoảng {eth_per_wallet} ETH")
+            for priv in wallets:
+                try:
+                    acct = Account.from_key(priv)
+                    sender_address = acct.address
+                    nonce = web3.eth.get_transaction_count(sender_address)
+                    tx = {
+                        'to': DEST_WALLET,
+                        'value': int(eth_per_wallet * Decimal(1e18)),
+                        'gas': 21000,
+                        'nonce': nonce,
+                        'gasPrice': web3.to_wei(gas_now if GAS_CUSTOM == 0 else GAS_CUSTOM, 'gwei')
+                    }
+                    signed_tx = acct.sign_transaction(tx)
+                    tx_hash = web3.eth.send_raw_transaction(signed_tx.rawTransaction)
+                    st.success(f"✅ Gửi từ {sender_address} → {DEST_WALLET}: {tx_hash.hex()}")
+                except Exception as e:
+                    st.error(f"❌ Gửi từ {sender_address} thất bại: {str(e)}")
