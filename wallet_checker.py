@@ -76,9 +76,8 @@ elif uploaded:
     content = uploaded.read().decode("utf-8").splitlines()
     wallets = [line.strip() for line in content if line.strip()]
 
-check_button = st.button("🔍 Kiểm tra số dư")
-
-if wallets and check_button:
+if wallets:
+    st.markdown("### 📊 Kết quả kiểm tra")
     total_eth = Decimal(0)
     total_token = Decimal(0)
     rows = []
@@ -120,7 +119,6 @@ if wallets and check_button:
         except Exception as e:
             rows.append({"#": idx, "Ví": "Lỗi", "ETH": "-", token_symbol: "-"})
 
-    st.markdown("### 📊 Kết quả kiểm tra")
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
     st.markdown("### 📈 Tổng kết")
@@ -128,6 +126,8 @@ if wallets and check_button:
     cols[0].metric("💵 Tổng ETH", f"{total_eth:.6f}")
     if ERC20_CONTRACT:
         cols[1].metric(f"📦 Tổng {token_symbol}", f"{total_token:.4f}")
+
+    st.button("🔄 Làm mới")
 
 # ========== GIAO DIỆN SWAP TOKEN (GIỮ NGUYÊN KHÔNG ĐỤNG) ===========
 # (Code swap đã có sẵn phía dưới vẫn giữ nguyên như yêu cầu)
