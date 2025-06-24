@@ -88,6 +88,8 @@ if mode == "Chia đều sang nhiều ví":
         source_wallet_options = [f"{i+1}: {Account.from_key(pk).address}" for i, pk in enumerate(wallets)]
         source_wallet = st.selectbox("📤 Chọn ví nguồn", options=source_wallet_options)
 
+send_trigger = st.button("🚀 Thực hiện chuyển tiền")
+
 @st.cache_data(ttl=60)
 def fetch_token_info(contract_addr):
     token_contract = web3.eth.contract(
