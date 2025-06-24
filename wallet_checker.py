@@ -41,6 +41,7 @@ RPC_URL = st.sidebar.text_input("🌐 RPC URL", value=DEFAULT_RPC)
 DEST_WALLET = st.sidebar.text_input("🛅 Ví nhận ETH", value="0x...", max_chars=42)
 ERC20_CONTRACT = st.sidebar.text_input("📦 Contract Token (nếu có)", value="")
 GAS_CUSTOM = st.sidebar.number_input("⚡ Gas Price (Gwei, 0 = auto)", min_value=0.0, value=0.0, format="%.3f")
+REFRESH = st.sidebar.button("🔁 Làm mới số dư")
 
 mode = st.sidebar.radio("🔁 Chế độ gửi tiền", ["Chuyển toàn bộ về 1 ví", "Chia đều sang nhiều ví"])
 
@@ -145,6 +146,9 @@ if wallets:
 
     df = pd.DataFrame(table_rows)
     st.dataframe(df, use_container_width=True, hide_index=True)
+
+    if REFRESH:
+        st.rerun()
 
     if send_trigger and mode == "Chia đều sang nhiều ví" and source_wallet and selected_wallets_to_receive:
         st.markdown("### 🔄 Đang gửi tiền...")
