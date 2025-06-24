@@ -84,7 +84,8 @@ if mode == "Chia đều sang nhiều ví":
         wallet_selection_input = st.text_area("📥 Dán danh sách ví nhận (1 ví mỗi dòng)")
         if wallet_selection_input.strip():
             selected_wallets_to_receive = [line.strip() for line in wallet_selection_input.splitlines() if line.strip()]
-        send_amount = st.number_input("💰 Tổng số ETH cần chia", min_value=0.0, format="%.6f")
+        send_amount_float = st.number_input("💰 Tổng số ETH cần chia", min_value=0.0, format="%.6f")
+        send_amount = Decimal(str(send_amount_float))
         if wallets:
             source_wallet_options = [f"{i+1}: {Account.from_key(pk).address}" for i, pk in enumerate(wallets)]
             source_wallet_display = st.selectbox("📤 Chọn ví nguồn", options=source_wallet_options)
