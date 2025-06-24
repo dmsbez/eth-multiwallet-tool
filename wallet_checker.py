@@ -111,6 +111,31 @@ def fetch_token_info(contract_addr):
         pass
     return symbol, decimals, supply, "N/A", "N/A"
 
-# PHẦN CÒN LẠI GIỮ NGUYÊN (CHƯA UPDATE ĐOẠN BỊ GIÁN ĐOẠN TẠI LINE 176)
-# SẼ CẦN THÊM: xử lý gửi ETH từ ví nguồn đến danh sách ví nhận
-# sử dụng biến selected_index sau khi được fix
+# ==== HIỂN THỊ BẢNG KIỂM TRA SỐ DƯ ====
+if wallets:
+    st.markdown("## 📊 Kết quả kiểm tra số dư")
+    table_rows = []
+    for i, pk in enumerate(wallets):
+        try:
+            acct = Account.from_key(pk)
+            addr = acct.address
+            eth_bal = Decimal(web3.eth.get_balance(addr)) / Decimal(1e18)
+            token_info = "-"
+            if ERC20_CONTRACT:
+                try:
+                    symbol, decimals, _, _, _ = fetch_token_info(ERC20_CONTRACT)
+                    token_contract = web3.eth.contract(
+                        address=web3.to_checksum_address(ERC20_CONTRACT),
+                        abi=json.loads('[{"constant":true,"inputs":[{"name":"_owner","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"type":"function"}]')
+                    )
+                    token_raw = token_contract.functions.balanceOf(addr).call()
+                    token_bal = Decimal(token_raw) / Decimal(10 ** decimals)
+                    token_info = f"{token_bal:.4f} {symbol}"
+                except:
+                    token_info = "❌"
+            table_rows.append({"#": i+1, "Địa chỉ": addr, "ETH": f"{eth_bal:.6f}", "Token": token_info})
+        except Exception as e:
+            table_rows.append({"#": i+1, "Địa chỉ": "Lỗi", "ETH": "-", "Token": str(e)})
+
+    df = pd.DataFrame(table_rows)
+    st.dataframe(df, use_container_width=True, hide_index=True)
