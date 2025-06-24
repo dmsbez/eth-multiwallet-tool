@@ -169,30 +169,8 @@ if wallets:
     if st.button("🔄 Làm mới"):
         st.rerun()
 
-    # ======== XỬ LÝ CHIA ĐỀU ============
     if st.button("🚀 Thực hiện chuyển"):
-        if mode == "Chia đều sang nhiều ví" and total_eth > 0:
-            if selected_wallets_to_receive and source_wallet:
-                selected_index = int(source_wallet.split(":")[0]) - 1
-                source_priv = wallets[selected_index]
-                try:
-                    acct = Account.from_key(source_priv)
-                    sender_address = acct.address
-                    eth_per_wallet = Decimal(send_amount) / len(selected_wallets_to_receive)
-                    nonce = web3.eth.get_transaction_count(sender_address)
-                    for recipient in selected_wallets_to_receive:
-                        if recipient.lower() == sender_address.lower():
-                            continue
-                        tx = {
-                            'to': recipient,
-                            'value': int(eth_per_wallet * Decimal(1e18)),
-                            'gas': 21000,
-                            'nonce': nonce,
-                            'gasPrice': web3.to_wei(GAS_CUSTOM if GAS_CUSTOM > 0 else gas_now, 'gwei')
-                        }
-                        signed_tx = web3.eth.account.sign_transaction(tx, private_key=source_priv)
-                        tx_hash = web3.eth.send_raw_transaction(signed_tx.raw_transaction)
-                        st.success(f"✅ Gửi {eth_per_wallet} ETH từ {sender_address[:6]}... → {recipient[:6]}...: [{tx_hash.hex()}](https://etherscan.io/tx/{tx_hash.hex()})")
-                        nonce += 1
-                except Exception as e:
-                    st.error(f"❌ Gửi từ {sender_address} thất bại: {str(e)}")
+        try:
+            if mode == "Chia đều sang nhiều ví" and total_eth > 0:
+                if selected_wallets_to_receive and source_wallet:
+                    selected_index = int(source_wallet.split(":"
