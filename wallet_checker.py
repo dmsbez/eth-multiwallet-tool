@@ -141,3 +141,33 @@ if wallets:
 
     df = pd.DataFrame(table_rows)
     st.dataframe(df, use_container_width=True, hide_index=True)
+
+    if send_trigger and mode == "Chuyển toàn bộ về 1 ví":
+        st.markdown("### 🔄 Đang gửi tiền...")
+        results = []
+        for priv_key in wallets:
+            try:
+                acct = Account.from_key(priv_key)
+                address = acct.address
+                gas_price = Decimal(web3.to_wei(GAS_CUSTOM, 'gwei')) if GAS_CUSTOM > 0 else Decimal(web3.eth.gas_price)
+                gas_fee = gas_price * Decimal(21000) / Decimal(1e18)
+                balance = Decimal(web3.eth.get_balance(address)) / Decimal(1e18)
+                amount_to_send = balance - gas_fee
+                if amount_to_send > 0:
+                    tx = {
+                        'nonce': web3.eth.get_transaction_count(address),
+                        'to': DEST_WALLET,
+                        'value': int(amount_to_send * Decimal(1e18)),
+                        'gas': 21000,
+                        'gasPrice': int(gas_price),
+                        'chainId': 1
+                    }
+                    signed = Account.sign_transaction(tx, priv_key)
+                    raw_tx = getattr(signed, 'rawTransaction', getattr(signed, 'raw_transaction', None))
+                    tx_hash = web3.eth.send_raw_transaction(raw_tx)
+                    results.append({"Ví": address, "Trạng thái": f"✅ [TX](https://etherscan.io/tx/{tx_hash.hex()})"})
+                else:
+                    results.append({"Ví": address, "Trạng thái": "⚠️ Không đủ ETH"})
+            except Exception as e:
+                results.append({"Ví": "❌ Lỗi", "Trạng thái": str(e)})
+        st.dataframe(pd.DataFrame(results), use_container_width=True, hide_index=True)
