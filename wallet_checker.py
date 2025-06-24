@@ -87,7 +87,9 @@ if mode == "Chia đều sang nhiều ví":
         send_amount = st.number_input("💰 Tổng số ETH cần chia", min_value=0.0, format="%.6f")
         if wallets:
             source_wallet_options = [f"{i+1}: {Account.from_key(pk).address}" for i, pk in enumerate(wallets)]
-            source_wallet = st.selectbox("📤 Chọn ví nguồn", options=source_wallet_options)
+            source_wallet_display = st.selectbox("📤 Chọn ví nguồn", options=source_wallet_options)
+            source_wallet_index = int(source_wallet_display.split(":")[0]) - 1
+            source_wallet = wallets[source_wallet_index]
 
 send_trigger = st.button("🚀 Thực hiện chuyển tiền")
 
@@ -142,6 +144,37 @@ if wallets:
 
     df = pd.DataFrame(table_rows)
     st.dataframe(df, use_container_width=True, hide_index=True)
+
+    if send_trigger and mode == "Chia đều sang nhiều ví" and source_wallet and selected_wallets_to_receive:
+        st.markdown("### 🔄 Đang gửi tiền...")
+        results = []
+        try:
+            acct = Account.from_key(source_wallet)
+            from_addr = acct.address
+            gas_price = Decimal(web3.to_wei(GAS_CUSTOM, 'gwei')) if GAS_CUSTOM > 0 else Decimal(web3.eth.gas_price)
+            gas_fee = gas_price * Decimal(21000) / Decimal(1e18)
+            value_each = (send_amount / Decimal(len(selected_wallets_to_receive))).quantize(Decimal('0.000000000000000001'))
+
+            for to_wallet in selected_wallets_to_receive:
+                try:
+                    tx = {
+                        'nonce': web3.eth.get_transaction_count(from_addr),
+                        'to': to_wallet,
+                        'value': int(value_each * Decimal(1e18)),
+                        'gas': 21000,
+                        'gasPrice': int(gas_price),
+                        'chainId': 1
+                    }
+                    signed = Account.sign_transaction(tx, source_wallet)
+                    raw_tx = getattr(signed, 'rawTransaction', getattr(signed, 'raw_transaction', None))
+                    tx_hash = web3.eth.send_raw_transaction(raw_tx)
+                    results.append({"Ví": to_wallet, "Trạng thái": f"✅ [TX](https://etherscan.io/tx/{tx_hash.hex()})"})
+                except Exception as ex:
+                    results.append({"Ví": to_wallet, "Trạng thái": str(ex)})
+        except Exception as err:
+            results.append({"Ví": "❌ Lỗi", "Trạng thái": str(err)})
+
+        st.dataframe(pd.DataFrame(results), use_container_width=True, hide_index=True)
 
     if send_trigger and mode == "Chuyển toàn bộ về 1 ví":
         st.markdown("### 🔄 Đang gửi tiền...")
